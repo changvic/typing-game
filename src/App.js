@@ -1,6 +1,6 @@
-import React, { useState, useRef } from "react";
+import React, { useState, useRef, useEffect } from "react";
 
-const SENTENCES = [
+const DEFAULT_SENTENCES = [
   "Hello world",
   "Coding is fun!",
   "React makes UI easy",
@@ -9,12 +9,18 @@ const SENTENCES = [
   "打字遊戲加油！",
 ];
 
-function getRandomSentence() {
-  return SENTENCES[Math.floor(Math.random() * SENTENCES.length)];
-}
-
 function App() {
-  const [sentence, setSentence] = useState(getRandomSentence());
+  // 自訂題庫
+  const [customSentences, setCustomSentences] = useState(() => {
+    const data = localStorage.getItem("custom_sentences");
+    return data ? JSON.parse(data) : [];
+  });
+  const [newSentence, setNewSentence] = useState("");
+  const [showAddBar, setShowAddBar] = useState(false);
+  const allSentences = [...DEFAULT_SENTENCES, ...customSentences];
+
+  // 遊戲狀態
+  const [sentence, setSentence] = useState("");
   const [input, setInput] = useState("");
   const [mistakes, setMistakes] = useState(0);
   const [startTime, setStartTime] = useState(null);
@@ -27,17 +33,29 @@ function App() {
 
   const inputRef = useRef(null);
 
-  // 中文注音輸入組字狀態
+  // 題庫同步到 localStorage
+  useEffect(() => {
+    localStorage.setItem("custom_sentences", JSON.stringify(customSentences));
+  }, [customSentences]);
+
+  // 出題
+  const getRandomSentence = () => {
+    return allSentences[Math.floor(Math.random() * allSentences.length)];
+  };
+
+  useEffect(() => {
+    setSentence(getRandomSentence());
+    // eslint-disable-next-line
+  }, [customSentences]);
+
+  // 注音組字
   const handleCompositionStart = () => setComposing(true);
   const handleCompositionEnd = () => setComposing(false);
 
-  // 只在「非組字狀態」時才做錯誤判斷
+  // 鍵入判斷
   const handleChange = (e) => {
     const val = e.target.value;
-
-    // 只有在不是組字狀態時才進行判斷
     if (!composing) {
-      // 只檢查新輸入的那個字
       if (val.length > input.length && val.length <= sentence.length) {
         const lastIndex = val.length - 1;
         if (val[lastIndex] !== sentence[lastIndex]) {
@@ -45,7 +63,6 @@ function App() {
         }
       }
     }
-
     setInput(val);
 
     if (startTime === null && val.length === 1) {
@@ -62,6 +79,7 @@ function App() {
     }
   };
 
+  // 再來一題
   const handleRestart = () => {
     setSentence(getRandomSentence());
     setInput("");
@@ -72,10 +90,25 @@ function App() {
     setTimeout(() => inputRef.current && inputRef.current.focus(), 200);
   };
 
+  // 新增自訂題庫
+  const handleAddSentence = () => {
+    const s = newSentence.trim();
+    if (!s) return;
+    if (allSentences.includes(s)) return;
+    setCustomSentences([...customSentences, s]);
+    setNewSentence("");
+    setShowAddBar(false);
+  };
+
+  // 刪除自訂題庫
+  const handleDeleteSentence = (index) => {
+    setCustomSentences(customSentences.filter((_, i) => i !== index));
+  };
+
   return (
     <div
       style={{
-        maxWidth: 500,
+        maxWidth: 600,
         margin: "60px auto",
         padding: 32,
         borderRadius: 12,
@@ -84,6 +117,8 @@ function App() {
       }}
     >
       <h2>趣味打字遊戲</h2>
+
+      {/* 遊戲主體 */}
       <div style={{ fontSize: 20, margin: 20, color: "#333" }}>{sentence}</div>
       <input
         ref={inputRef}
@@ -118,6 +153,59 @@ function App() {
       {!completed && (
         <div style={{ marginTop: 16, color: "#666" }}>輸入正確才能過關！</div>
       )}
+
+      {/* --- 新增題庫區塊（下方） --- */}
+      <div style={{ marginTop: 36 }}>
+        {!showAddBar && (
+          <button onClick={() => setShowAddBar(true)}>➕ 新增題庫</button>
+        )}
+        {showAddBar && (
+          <div style={{ marginTop: 12 }}>
+            <input
+              value={newSentence}
+              onChange={(e) => setNewSentence(e.target.value)}
+              placeholder="請輸入新句子"
+              style={{ width: 280, padding: 6, fontSize: 16 }}
+              autoFocus
+              onKeyDown={(e) => {
+                if (e.key === "Enter") handleAddSentence();
+              }}
+            />
+            <button onClick={handleAddSentence} style={{ marginLeft: 8 }}>
+              加入
+            </button>
+            <button
+              onClick={() => {
+                setShowAddBar(false);
+                setNewSentence("");
+              }}
+              style={{ marginLeft: 8, color: "#888" }}
+            >
+              取消
+            </button>
+          </div>
+        )}
+        {/* 顯示自訂題庫列表 */}
+        <div style={{ margin: "18px 0" }}>
+          <b>自訂題庫：</b>
+          <ul style={{ textAlign: "left", margin: "12px auto", maxWidth: 400 }}>
+            {customSentences.map((s, idx) => (
+              <li key={s + idx}>
+                {s}
+                <button
+                  onClick={() => handleDeleteSentence(idx)}
+                  style={{ marginLeft: 8, color: "#c00" }}
+                >
+                  刪除
+                </button>
+              </li>
+            ))}
+            {customSentences.length === 0 && (
+              <li style={{ color: "#aaa" }}>（尚無自訂題庫）</li>
+            )}
+          </ul>
+        </div>
+      </div>
     </div>
   );
 }
